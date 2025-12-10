@@ -1,0 +1,314 @@
+
+
+services:
+  # Metric Service
+  metric-service:
+    build:
+      context: ./metric-service
+    container_name: metric-service
+    environment:
+      - DB_URL=jdbc:postgresql://metric-service-db:5432/metric_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - JWT_SECRET=6fddfe6745a839c6811f85b89e9e9bcd
+    networks:
+      - alert-hub-network
+    depends_on:
+      - metric-service-db
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    environment:
+      - JWT_SECRET=6fddfe6745a839c6811f85b89e9e9bcd
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=your_redis_password
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - redis
+      - service-discovery
+    ports:
+      - "8080:8080"
+
+  # Eureka Service Discovery
+  service-discovery:
+    build:
+      context: ./service-discovery
+    container_name: service-discovery
+    environment:
+      - EUREKA_SERVER_URL=http://localhost:8761/eureka/
+      - eureka.client.register-with-eureka=false
+      - eureka.client.fetch-registry=false
+    ports:
+      - "8761:8761"
+    networks:
+      - alert-hub-network
+
+  # Action Service
+  action-service:
+    build:
+      context: ./actions-service
+    container_name: action-service
+    environment:
+      - DB_URL=jdbc:postgresql://action-service-db:5432/action_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - action-service-db
+      - service-discovery
+
+  # Security Service
+  security-service:
+    build:
+      context: ./security-service
+    container_name: security-service
+    environment:
+      - DB_URL=jdbc:postgresql://security-service-db:5432/security_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - JWT_SECRET=6fddfe6745a839c6811f85b89e9e9bcd
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=your_redis_password
+      - TOKEN_EXPIRY_DURATION=180000
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - redis
+      - service-discovery
+      - security-service-db
+    ports:
+      - "8081:8081"
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+    container_name: user-service
+    environment:
+      - DB_URL=jdbc:postgresql://user-service-db:5432/user_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - user-service-db
+      - service-discovery
+
+  # Evaluation Service
+  evaluation-service:
+    build:
+      context: ./evaluation-service
+    container_name: evaluation-service
+    environment:
+      - DB_URL=jdbc:postgresql://evaluation-service-db:5432/evaluation_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - evaluation-service-db
+      - service-discovery
+
+  # Loader Service
+  loader-service:
+    build:
+      context: ./loader-service
+    container_name: loader-service
+    environment:
+      - DB_URL=jdbc:postgresql://loader-service-db:5432/loader_service_db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - loader-service-db
+      - service-discovery
+      
+  # processor-service
+  processor-service:
+    build:
+      context: ./processor-service
+    container_name: processor-service
+    environment:
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - loader-service
+      - metric-service
+      - kafka
+      
+  # notification-service
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: notification-service
+    environment:
+      - EUREKA_DEFAULT_ZONE=http://service-discovery:8761/eureka/
+    networks:
+      - alert-hub-network
+    depends_on:
+      - kafka
+
+  # Databases
+  metric-service-db:
+    image: postgres:13
+    container_name: metric-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=metric_service_db
+    volumes:
+      - metric-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5431:5432"
+
+  action-service-db:
+    image: postgres:13
+    container_name: action-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=action_service_db
+    volumes:
+      - action-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5432:5432"
+
+  user-service-db:
+    image: postgres:13
+    container_name: user-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=user_service_db
+    volumes:
+      - user-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5433:5432"
+
+  evaluation-service-db:
+    image: postgres:13
+    container_name: evaluation-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=evaluation_service_db
+    volumes:
+      - evaluation-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5434:5432"
+
+  loader-service-db:
+    image: postgres:13
+    container_name: loader-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=loader_service_db
+    volumes:
+      - loader-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5435:5432"
+
+  security-service-db:
+    image: postgres:13
+    container_name: security-service-db
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=security_service_db
+    volumes:
+      - security-service-db-data:/var/lib/postgresql/data
+    networks:
+      - alert-hub-network
+    ports:
+      - "5436:5432"
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - alert-hub-network
+
+  # Zookeeper
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - alert-hub-network
+
+  # Kafka
+  kafka:
+    image: wurstmeister/kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9093,OUTSIDE://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - alert-hub-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8089:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=alert-hub-kafka
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9093
+    depends_on:
+      - kafka
+    networks:
+      - alert-hub-network
+
+
+networks:
+  alert-hub-network:
+    driver: bridge
+
+
+volumes:
+  metric-service-db-data:
+  action-service-db-data:
+  user-service-db-data:
+  evaluation-service-db-data:
+  loader-service-db-data:
+  security-service-db-data:
